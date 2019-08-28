@@ -9,6 +9,7 @@ namespace GxtCadSolutions
 	{
 		public int VerticalScale { get; set;}
 		public double Length { get; set; }
+		public Point3d LeftBottomPt { get; set; }
 		public int HorizontalLineCount { get; set; }
 		public DBObjectCollection GridObjCollection { get; set; }
 		public Point3d InsertionPoint { get; set; }
@@ -25,7 +26,7 @@ namespace GxtCadSolutions
 				VerticalScale = vScale;
 			}
 
-			Length = l;
+			this.Length = l + (50 - (l % 25));
 			this.GridObjCollection = new DBObjectCollection();
 		}
 
@@ -37,14 +38,17 @@ namespace GxtCadSolutions
 			Document doc = Application.DocumentManager.MdiActiveDocument;
 
 			//prompt user for insertion point
-			PromptPointOptions prompt = new PromptPointOptions("Select insertion point:");
+			PromptPointOptions prompt = new PromptPointOptions("\nSelect insertion point:");
 			InsertionPoint = doc.Editor.GetPoint(prompt).Value;
 
+			//Left bottom grid corner
+			LeftBottomPt = new Point3d(InsertionPoint.X - 25, InsertionPoint.Y, InsertionPoint.Z);
+
 			//Create ending point from Length
-			Point3d endPoint = new Point3d(InsertionPoint.X + Length, InsertionPoint.Y, InsertionPoint.Z);
+			Point3d endPoint = new Point3d(LeftBottomPt.X + this.Length, LeftBottomPt.Y, LeftBottomPt.Z);
 
 			//create inital line to draw grid
-			Line line = new Line(InsertionPoint, endPoint);
+			Line line = new Line(LeftBottomPt, endPoint);
 
 			//Horizontal grid lines
 			for (int i = 0; i <= HorizontalLineCount; i++)
@@ -54,23 +58,32 @@ namespace GxtCadSolutions
 
 				if (i % 5 == 0)
 				{
-					line.Color = Autodesk.AutoCAD.Colors.Color.FromRgb(255, 255, 255);
+					line.Layer = "BORDER4";
 					this.GridObjCollection.Add(line.GetOffsetCurves(i * VerticalScale)[0]);
 				}
 				else
 				{
-					line.Color = Autodesk.AutoCAD.Colors.Color.FromRgb(80, 80, 80);
+					line.Layer = "BORDER2";
 					this.GridObjCollection.Add(line.GetOffsetCurves(i * VerticalScale)[0]);
 				}
 			}
 
 			//verticle grid lines every 100 feet
-			Point3d vpointBottom = new Point3d(InsertionPoint.X, InsertionPoint.Y, InsertionPoint.Z);
+			Point3d vpointBottom = new Point3d(LeftBottomPt.X, LeftBottomPt.Y, LeftBottomPt.Z);
 			Line vline = new Line(vpointBottom, new Point3d(vpointBottom.X, vpointBottom.Y + (VerticalScale * HorizontalLineCount), vpointBottom.Z));
-
-			for (int i = 0; i <= (int)(this.Length / 100); i++)
+			
+			for (int i = 0; i <= (int)(this.Length / 25); i++)
 			{
-				this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 100))[0]);
+				if ((this.Length - (i * 25)) % 100 == 0)
+				{
+					vline.Layer = "BORDER4";
+					this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 25))[0]);
+				}
+				else
+				{
+					vline.Layer = "BORDER2";
+					this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 25))[0]);
+				}
 			}
 
 			PlaceGridElevationText();
@@ -83,7 +96,7 @@ namespace GxtCadSolutions
 			{
 				Contents = FormatStation(0),
 				TextHeight = 2.5,
-				Location = new Point3d(InsertionPoint.X, InsertionPoint.Y + (VerticalScale * HorizontalLineCount), InsertionPoint.Z),
+				Location = new Point3d(InsertionPoint.X, InsertionPoint.Y + (VerticalScale * HorizontalLineCount + 2), InsertionPoint.Z),
 				Attachment = AttachmentPoint.BottomCenter
 			};
 
@@ -103,28 +116,43 @@ namespace GxtCadSolutions
 		{
 			MText mText = new MText()
 			{
-				TextHeight = 2.5,
-				Location = new Point3d(InsertionPoint.X - 5, InsertionPoint.Y, InsertionPoint.Y),
-				//Contents = "-25"
+				TextHeight = 3.5,
+				Location = new Point3d(LeftBottomPt.X - 5, LeftBottomPt.Y, LeftBottomPt.Y),
+				Layer = "TEXT-2",
 			};
 
-			for (int i = 5; i <= HorizontalLineCount / 5; i--)
+			Transaction tr = Application.DocumentManager.MdiActiveDocument.Database.TransactionManager.StartTransaction();
+			using (tr)
 			{
-				MText mt = (MText)mText.Clone();
-				mt.Contents = (i * -5).ToString();
-				mt.Location = new Point3d(mText.Location.X, mText.Location.Y + (VerticalScale * i * 5), mText.Location.Z);
-				GridObjCollection.Add(mt);
+				TextStyleTable txtBlockTable = tr.GetObject(Application.DocumentManager.MdiActiveDocument.Database.TextStyleTableId, OpenMode.ForRead) as TextStyleTable;
+				mText.TextStyleId = txtBlockTable["B"];
 			}
 
-			MText mTextEnd = (MText)mText.Clone();
-			mTextEnd.Location = new Point3d(InsertionPoint.X + (Length + 5), InsertionPoint.Y, InsertionPoint.Z);
+			int i = -30;
+			int x = 0;
+			while (i < 5 )
+			{
+				MText mt = (MText)mText.Clone();
+				mt.Contents = (i + 5).ToString();
+				mt.Location = new Point3d(mText.Location.X, mText.Location.Y + (VerticalScale * x * 5), mText.Location.Z);
+				GridObjCollection.Add(mt);
+				i += 5;
+				x++;
+			}
 
-			for (int i = 0; i <= HorizontalLineCount / 5; i++)
+			i = -30;
+			x = 0;
+			MText mTextEnd = (MText)mText.Clone();
+			mTextEnd.Location = new Point3d(LeftBottomPt.X + (Length + 5), LeftBottomPt.Y, LeftBottomPt.Z);
+
+			while (i < 5)
 			{
 				MText mt = (MText)mTextEnd.Clone();
-				mt.Contents = (i * 5).ToString();
-				mt.Location = new Point3d(mTextEnd.Location.X, mTextEnd.Location.Y + (VerticalScale * i * 5), mTextEnd.Location.Z);
+				mt.Contents = (i + 5).ToString();
+				mt.Location = new Point3d(mTextEnd.Location.X, mTextEnd.Location.Y + (VerticalScale * x * 5), mTextEnd.Location.Z);
 				GridObjCollection.Add(mt);
+				i += 5;
+				x++;
 			}
 		}
 
