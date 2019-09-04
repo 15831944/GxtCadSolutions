@@ -81,17 +81,53 @@ namespace GxtCadSolutions
 
 			//vertice to create selection fence use runningLine
 			SelectionSet selectionSet = CreateFenceUsingPolyline(runningLine, false);
-			//find objects that intersect with runningLine
-			var profileObjects = CrossingObjects(selectionSet, runningLine, gradeLineInsPt);
 
-			//draw profile objects
-			foreach (var obj in profileObjects)
-				DrawProfileObjects(obj);
+			//if any objects selected 
+			if (selectionSet != null)
+			{
+				//find objects that intersect with runningLine
+				var objCrossingRunningLine = CrossingObjects(selectionSet, runningLine, gradeLineInsPt);
+
+				//draw profile objects if any
+				if (objCrossingRunningLine != null)
+				{
+					foreach (var obj in objCrossingRunningLine)
+						DrawProfileObjects(obj);
+				}
+
+				//find boc intersect
+				//var bocCrossingRunningLine = 
+			}	
+			
 			//bore line
-			DrawBoreLine(gradeLine.GetOffsetCurves(14)[0] as Polyline);
+			Polyline bore = gradeLine.GetOffsetCurves(14)[0] as Polyline;
+			DrawBoreLine(bore);
+
+			//find intercepting profile objects using fence
+			SelectionSet ellipsesSelectionSet = CreateFenceUsingPolyline(bore, true);
+
+			//if any profile ellipses selected
+			if (ellipsesSelectionSet != null)
+			{
+				//find objects crossing bore line
+				var objsCrossingBoreLine = CrossingBoreLine(selectionSet, bore);
+
+				//modify bore to dip below crossing utilities if any
+				if (objsCrossingBoreLine != null)
+				{
+					//todo
+					foreach (var obj in objsCrossingBoreLine)
+						DrawBoreBelowUtilities();
+				}
+			}
 		}
 
-		
+		private void DrawBoreBelowUtilities(Polyline bore )
+		{
+
+
+			throw new NotImplementedException();
+		}
 
 		public List<ProfileObject> CrossingObjects(SelectionSet promptSelectionResult, Polyline rl, Point3d glInsPt)
 		{
@@ -118,19 +154,28 @@ namespace GxtCadSolutions
 						//if we are here then all good no error!
 						if (points != null)
 						{
-							Point3d ipoint = GetProfileObjInsertionPoint(rl.GetDistAtPoint(points[0]), ent.Layer,  glInsPt);
-							double size = GetLineTypeSize(ent.Linetype);
-							string contents = ProfileObjContentFormat(ent.Linetype);
-							
-							if (size != 0.0)
+							Point3d ipoint = GetProfileObjInsertionPoint(rl.GetDistAtPoint(points[0]), ent.Layer, glInsPt);
+
+							if (ent.Layer.ToLower() == "boc")
 							{
-								profileObjects.Add(
-								new ProfileObject{
-									Center = ipoint,
-									Type = ent.Layer,
-									Size = size,
-									Contents = contents
-								});
+								//need to create objects for crossing streets and ...this will be another class... and will change the list to and object list 
+							}
+							else
+							{
+								double size = GetLineTypeSize(ent.Linetype);
+								string contents = ProfileObjContentFormat(ent.Linetype);
+
+								if (size != 0.0)
+								{
+									profileObjects.Add(
+									new ProfileObject
+									{
+										Center = ipoint,
+										Type = ent.Layer,
+										Size = size,
+										Contents = contents
+									});
+								}
 							}
 						}
 					}
@@ -234,11 +279,6 @@ namespace GxtCadSolutions
 				trans.AddNewlyCreatedDBObject(bore, true);
 				trans.Commit();
 			}
-
-			//find intercepting profile objects using fence
-			SelectionSet selectionSet = CreateFenceUsingPolyline(bore, true);
-			//find objects crossing bore line
-			var objsCrossingBoreLine = CrossingBoreLine(selectionSet, bore);
 		}
 
 		public Point3dCollection CrossingBoreLine(SelectionSet ss, Polyline bore)
@@ -266,14 +306,9 @@ namespace GxtCadSolutions
 						//if we are here then all good no error!
 						if (points != null)
 						{
-							//int segNum = GetSegOnPolyline(bore, points[0]);
-							//if (segNum != -1)
-							//{
-							//	segments[index] = segNum;
-							//	index++;
-							//}
+							
 
-							pts.Add(points[0]);
+							//pts.Add(points[0]);
 						}
 					}
 					catch (Autodesk.AutoCAD.Runtime.Exception e)

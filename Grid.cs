@@ -59,31 +59,27 @@ namespace GxtCadSolutions
 				if (i % 5 == 0)
 				{
 					line.Layer = "BORDER4";
-					this.GridObjCollection.Add(line.GetOffsetCurves(i * VerticalScale)[0]);
 				}
-				else
-				{
-					line.Layer = "BORDER2";
-					this.GridObjCollection.Add(line.GetOffsetCurves(i * VerticalScale)[0]);
-				}
+				else line.Layer = "BORDER2";
+				
+				this.GridObjCollection.Add(line.GetOffsetCurves(i * VerticalScale)[0]);
 			}
 
 			//verticle grid lines every 100 feet
 			Point3d vpointBottom = new Point3d(LeftBottomPt.X, LeftBottomPt.Y, LeftBottomPt.Z);
 			Line vline = new Line(vpointBottom, new Point3d(vpointBottom.X, vpointBottom.Y + (VerticalScale * HorizontalLineCount), vpointBottom.Z));
 			
-			for (int i = 0; i <= (int)(this.Length / 25); i++)
+			for (int i = 0; i*5 <= (int)(this.Length); i++)
 			{
-				if ((this.Length - (i * 25)) % 100 == 0)
+				//every line at 25 intervals
+				if ((i * 5) % 25 == 0)
 				{
 					vline.Layer = "BORDER4";
-					this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 25))[0]);
 				}
-				else
-				{
-					vline.Layer = "BORDER2";
-					this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 25))[0]);
-				}
+				//every line at 5 intervals
+				else vline.Layer = "BORDER2"; 
+				
+				this.GridObjCollection.Add(vline.GetOffsetCurves(-(i * 5))[0]);
 			}
 
 			PlaceGridElevationText();
@@ -103,7 +99,7 @@ namespace GxtCadSolutions
 
 			GridObjCollection.Add(mText);
 
-			for (int i = 1; i <= (Length / 100); i++)
+			for (int i = 1; (i * 100) <= Length; i++)
 			{
 				MText m = (MText)mText.Clone();
 				m.Contents = FormatStation(i * 100);
@@ -119,6 +115,7 @@ namespace GxtCadSolutions
 				TextHeight = 3.5,
 				Location = new Point3d(LeftBottomPt.X - 5, LeftBottomPt.Y, LeftBottomPt.Y),
 				Layer = "TEXT-2",
+				Attachment = AttachmentPoint.MiddleRight
 			};
 
 			Transaction tr = Application.DocumentManager.MdiActiveDocument.Database.TransactionManager.StartTransaction();
@@ -133,7 +130,7 @@ namespace GxtCadSolutions
 			while (i < 5 )
 			{
 				MText mt = (MText)mText.Clone();
-				mt.Contents = (i + 5).ToString();
+				mt.Contents = FormatGridElevataion(i + 5);
 				mt.Location = new Point3d(mText.Location.X, mText.Location.Y + (VerticalScale * x * 5), mText.Location.Z);
 				GridObjCollection.Add(mt);
 				i += 5;
@@ -148,8 +145,9 @@ namespace GxtCadSolutions
 			while (i < 5)
 			{
 				MText mt = (MText)mTextEnd.Clone();
-				mt.Contents = (i + 5).ToString();
+				mt.Contents = FormatGridElevataion(i + 5);
 				mt.Location = new Point3d(mTextEnd.Location.X, mTextEnd.Location.Y + (VerticalScale * x * 5), mTextEnd.Location.Z);
+				mt.Attachment = AttachmentPoint.MiddleLeft;
 				GridObjCollection.Add(mt);
 				i += 5;
 				x++;
@@ -181,9 +179,20 @@ namespace GxtCadSolutions
 
 					formattedStation += array[i];
 				}
-
 			}
 			return formattedStation;
+		}
+
+		public string FormatGridElevataion(int e)
+		{
+
+			if (e == -5)
+				return "-05";
+
+			if (e.ToString().Length == 1)
+				return "0" + e.ToString();
+
+			return e.ToString();
 		}
 
 		public void SaveGrid()
