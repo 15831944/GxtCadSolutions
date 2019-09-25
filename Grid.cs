@@ -88,22 +88,16 @@ namespace GxtCadSolutions
 
 		private void PlaceProfileStationText()
 		{
-			MText mText = new MText()
+			
+			for (int i = 0; (i * 100) <= (Length - 50); i++)
 			{
-				Contents = FormatStation(0),
-				TextHeight = 2.5,
-				Location = new Point3d(InsertionPoint.X, InsertionPoint.Y + (VerticalScale * HorizontalLineCount + 2), InsertionPoint.Z),
-				Attachment = AttachmentPoint.BottomCenter
-			};
-
-
-			GridObjCollection.Add(mText);
-
-			for (int i = 1; (i * 100) <= Length; i++)
-			{
-				MText m = (MText)mText.Clone();
-				m.Contents = FormatStation(i * 100);
-				m.Location = new Point3d(mText.Location.X + (i * 100), mText.Location.Y, mText.Location.Z);
+				MText m = new MText()
+				{
+					Attachment = AttachmentPoint.BottomCenter,
+					Contents = FormatStation(i * 100),
+					TextHeight = 2.5,
+					Location = new Point3d(InsertionPoint.X + (i * 100), InsertionPoint.Y + (VerticalScale * HorizontalLineCount + 2), InsertionPoint.Z),
+				};
 				GridObjCollection.Add(m);
 			}
 		}
@@ -113,7 +107,7 @@ namespace GxtCadSolutions
 			MText mText = new MText()
 			{
 				TextHeight = 3.5,
-				Location = new Point3d(LeftBottomPt.X - 5, LeftBottomPt.Y, LeftBottomPt.Y),
+				Location = new Point3d(LeftBottomPt.X - 5, LeftBottomPt.Y, LeftBottomPt.Z),
 				Layer = "TEXT-2",
 				Attachment = AttachmentPoint.MiddleRight
 			};

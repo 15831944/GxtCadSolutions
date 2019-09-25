@@ -86,7 +86,7 @@ namespace GxtCadSolutions
 			if (selectionSet != null)
 			{
 				//find objects that intersect with runningLine
-				var objCrossingRunningLine = CrossingObjects(selectionSet, runningLine, gradeLineInsPt);
+				var objCrossingRunningLine = CrossingRunnngLine(selectionSet, runningLine, gradeLineInsPt);
 
 				//draw profile objects if any
 				if (objCrossingRunningLine != null)
@@ -103,33 +103,49 @@ namespace GxtCadSolutions
 			Polyline bore = gradeLine.GetOffsetCurves(14)[0] as Polyline;
 			DrawBoreLine(bore);
 
-			//find intercepting profile objects using fence
-			SelectionSet ellipsesSelectionSet = CreateFenceUsingPolyline(bore, true);
+			//find intercepting profile objects using fence and filter for only ellipses
+			SelectionSet utilitiesCrossingBore = CreateFenceUsingPolyline(bore, true);
 
 			//if any profile ellipses selected
-			if (ellipsesSelectionSet != null)
+			if (utilitiesCrossingBore != null)
 			{
-				//find objects crossing bore line
-				var objsCrossingBoreLine = CrossingBoreLine(selectionSet, bore);
-
-				//modify bore to dip below crossing utilities if any
-				if (objsCrossingBoreLine != null)
-				{
-					//todo
-					foreach (var obj in objsCrossingBoreLine)
-						DrawBoreBelowUtilities();
-				}
+				DrawBoreBelowUtilities(utilitiesCrossingBore, bore.ObjectId);
 			}
 		}
 
-		private void DrawBoreBelowUtilities(Polyline bore )
-		{
+		//private void DrawBoreBelowUtilities(Point3dCollection pts, Polyline bore)
+		//{
+		//	double verticeIndex;
 
+		//	Transaction trans = database.TransactionManager.StartTransaction();
+		//	using (trans)
+		//	{
+		//		foreach (Point3d pt in pts)
+		//		{
+		//			Point3d pt1 = new Point3d(pt.X - 40, pt.Y, pt.Z);
+		//			Point3d pt2 = new Point3d(pt.X - 20, pt.Y - 8, pt.Z);
+		//			Point3d pt3 = new Point3d(pt.X + 20, pt.Y - 8, pt.Z);
+		//			Point3d pt4 = new Point3d(pt.X + 40, pt.Y, pt.Z);
 
-			throw new NotImplementedException();
-		}
+		//			try
+		//			{
+		//				verticeIndex = bore.GetParameterAtPoint(pt1);
+		//				var planeXY = new Plane(Point3d.Origin, Vector3d.ZAxis);
+		//				//bore.AddVertexAt(verticeIndex, pt1.Convert2d(planeXY), 0, 0, 0);
+		//				//bore.AddVertexAt(verticeIndex + 1, pt2.Convert2d(planeXY), 0, 0, 0);
+		//				//bore.AddVertexAt(verticeIndex + 2, pt3.Convert2d(planeXY), 0, 0, 0);
+		//				//bore.AddVertexAt(verticeIndex + 3, pt4.Convert2d(planeXY), 0, 0, 0);
+		//			}
+		//			catch (Autodesk.AutoCAD.Runtime.Exception ex)
+		//			{
+		//				document.Editor.WriteMessage(ex.Message);
+		//			}
+		//		}
+		//		trans.Commit();
+		//	}
+		//}
 
-		public List<ProfileObject> CrossingObjects(SelectionSet promptSelectionResult, Polyline rl, Point3d glInsPt)
+		public List<ProfileObject> CrossingRunnngLine(SelectionSet promptSelectionResult, Polyline rl, Point3d glInsPt)
 		{
 			var profileObjects = new List<ProfileObject>();
 			Transaction trans = database.TransactionManager.StartTransaction();
@@ -281,45 +297,63 @@ namespace GxtCadSolutions
 			}
 		}
 
-		public Point3dCollection CrossingBoreLine(SelectionSet ss, Polyline bore)
+		public void DrawBoreBelowUtilities(SelectionSet ss, ObjectId boreId)
 		{
 			Point3dCollection pts = new Point3dCollection();
 			//find what intercepts with 
 			Transaction trans = database.TransactionManager.StartTransaction();
 			using (trans)
 			{
+				BlockTable bt = trans.GetObject(database.BlockTableId, OpenMode.ForRead) as BlockTable;
+				BlockTableRecord btr = trans.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite) as BlockTableRecord;
+				//
+				Polyline bore = trans.GetObject(boreId, OpenMode.ForWrite) as Polyline;
+
 				//iterate troughth selection set and get intersection points
 				foreach (SelectedObject sObj in ss)
 				{
+
 					Entity ent = (Entity)trans.GetObject(sObj.ObjectId, OpenMode.ForRead);
 
 					if (ent.ObjectId == bore.ObjectId)
 						continue;
 
-					//try and if they intersect the results will be on points variable
-					try
-					{
-						Point3dCollection points = new Point3dCollection();
+					string test = ent.GeometricExtents.MinPoint.ToString();
+					test = test.Replace("(", "");
+					test = test.Replace(")", "");
 
-						bore.IntersectWith(ent, Intersect.OnBothOperands, points, IntPtr.Zero, IntPtr.Zero);
+					test = "-insert \r boredip \r " + test + " 1 1 0 ";
 
-						//if we are here then all good no error!
-						if (points != null)
-						{
-							
+					document.SendStringToExecute(test, false, false, false);
 
-							//pts.Add(points[0]);
-						}
-					}
-					catch (Autodesk.AutoCAD.Runtime.Exception e)
-					{
-						document.Editor.WriteMessage(e.Message + "\n" + ent.BlockName + "Does not Intersect bore line.");
-					}
+					////try and if they intersect the results will be on points variable
+					//try
+					//{
+					//	Point3dCollection points = new Point3dCollection();
+					//	bore.IntersectWith(ent, Intersect.OnBothOperands, points, IntPtr.Zero, IntPtr.Zero);
+
+					//	//if we are here then all points intersect!!
+					//	int ptIntersectCount = points.Count;
+
+					//	for (int i = ptIntersectCount - 1 ; i >= 0; i--)
+					//	{
+					//		////now that ellipse intercept. Step back 30 feet and add a vertix to the bore
+					//		//Point3d pt1 = new Point3d(points[ptIntersectCount].X + 30, points[ptIntersectCount].Y, points[ptIntersectCount].Z);
+					//		//int verticeIndex = (int)(bore.GetParameterAtPoint(pt1));
+					//		//bore.AddVertexAt(verticeIndex + 1, new Point2d(pt1.X, pt1.Y), 0, 0, 0);
+
+					//	}
+					//}
+					//catch (Autodesk.AutoCAD.Runtime.Exception e)
+					//{
+					//	document.Editor.WriteMessage(e.Message + "\n" + ent.BlockName + "Does not Intersect running line.");
+					//}
+
+					
+					//pts.Add(ent.GeometricExtents.MinPoint);
 				}
-				//int[] segments = new int[ss.Count];
-				//int index = 0;
+				trans.Commit();
 			}
-			return pts;
 		}
 
 		public string ProfileObjContentFormat(string size)
@@ -381,7 +415,7 @@ namespace GxtCadSolutions
 			if (filter)
 			{
 				TypedValue[] tv = new TypedValue[1];
-				tv[0] = new TypedValue((int)DxfCode.Start, "Ellipse");
+				tv.SetValue(new TypedValue((int)DxfCode.Start,"ELLIPSE"), 0);
 				selectionFilter = new SelectionFilter(tv);
 			}
 
@@ -432,6 +466,19 @@ namespace GxtCadSolutions
 		//	}
 		//	return segNum;
 		//}
+
+		[CommandMethod("TEST")]
+		public void test()
+		{
+			Document acDoc = Application.DocumentManager.MdiActiveDocument;
+
+			// Draws a circle and zooms to the extents or 
+			// limits of the drawing
+			string str = "-insert \r test \r 0,0,0 1 1 0 ";
+
+			acDoc.SendStringToExecute( str, true, false, false);
+			
+		}
 
 
 		public class ProfileObject
