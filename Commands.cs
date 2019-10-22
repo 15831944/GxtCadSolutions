@@ -88,17 +88,43 @@ namespace GxtCadSolutions
 				//find objects that intersect with runningLine
 				var objCrossingRunningLine = CrossingRunnngLine(selectionSet, runningLine, gradeLineInsPt);
 
+				Point3dCollection bocPoints = new Point3dCollection();
+
 				//draw profile objects if any
 				if (objCrossingRunningLine != null)
 				{
 					foreach (var obj in objCrossingRunningLine)
-						DrawProfileObjects(obj);
+					{
+						//draw profiles objects of Type = boc 
+						if (obj.Type == "boc")
+						{
+							bocPoints.Add(obj.Center);
+						}
+						else
+						{
+							DrawProfileObjects(obj);
+						}
+					}
 				}
+
+				if (bocPoints.Count != 0)
+				{
+					//convert to array to sort
+					Point3d[] point3s = new Point3d[bocPoints.Count];
+					bocPoints.CopyTo(point3s, 0);
+					Array.Sort(point3s, new sort3dByX());
+
+					Point3dCollection bocPtsSorted = new Point3dCollection(point3s);
+
+					DrawProfileDriveway(bocPtsSorted, gradeLine.Length);
+				}
+					
+
 
 				//find boc intersect
 				//var bocCrossingRunningLine = 
-			}	
-			
+			}
+
 			//bore line
 			Polyline bore = gradeLine.GetOffsetCurves(14)[0] as Polyline;
 			DrawBoreLine(bore);
@@ -109,7 +135,7 @@ namespace GxtCadSolutions
 			//if any profile ellipses selected
 			if (utilitiesCrossingBore != null)
 			{
-				DrawBoreBelowUtilities(utilitiesCrossingBore, bore.ObjectId);
+				//DrawBoreBelowUtilities(utilitiesCrossingBore, bore.ObjectId);
 			}
 		}
 
@@ -168,18 +194,31 @@ namespace GxtCadSolutions
 						rl.IntersectWith(ent, Intersect.OnBothOperands, points, IntPtr.Zero, IntPtr.Zero);
 
 						//if we are here then all good no error!
-						if (points != null)
+						if (points != null && points.Count != 0)
 						{
-							Point3d ipoint = GetProfileObjInsertionPoint(rl.GetDistAtPoint(points[0]), ent.Layer, glInsPt);
+							
 
 							if (ent.Layer.ToLower() == "boc")
 							{
-								//need to create objects for crossing streets and ...this will be another class... and will change the list to and object list 
+								int index = 0;
+								while (index < points.Count)
+								{
+									Point3d ipoint = GetProfileObjInsertionPoint(rl.GetDistAtPoint(points[index]), ent.Layer, glInsPt);
+									profileObjects.Add(
+									new ProfileObject
+									{
+										Center = ipoint,
+										Type = ent.Layer.ToLower()
+									});
+									index++;
+								}
 							}
 							else
 							{
 								double size = GetLineTypeSize(ent.Linetype);
 								string contents = ProfileObjContentFormat(ent.Linetype);
+
+								Point3d ipoint = GetProfileObjInsertionPoint(rl.GetDistAtPoint(points[0]), ent.Layer, glInsPt);
 
 								if (size != 0.0)
 								{
@@ -215,10 +254,10 @@ namespace GxtCadSolutions
 					depth = 40;
 					break;
 				case "water":
-					depth = 16;
+					depth = 32;
 					break;
 				case "storm":
-					depth = 12;
+					depth = 16;
 					break;
 				default:
 					depth = 0;
@@ -229,9 +268,19 @@ namespace GxtCadSolutions
 
 		public Point3d GetProfileObjInsertionPoint(double dist, string layer, Point3d pt)
 		{
-			Point3d p = new Point3d(0, 0, 0);
-			Matrix3d matrix = Matrix3d.Displacement(p.GetVectorTo(new Point3d(p.X + dist, p.Y - GetProfileDepth(layer), 0)));
+			Matrix3d matrix;
 
+			Point3d p = new Point3d(0, 0, 0);
+
+			if (layer.ToLower() == "boc")
+			{
+				matrix = Matrix3d.Displacement(p.GetVectorTo(new Point3d(p.X + dist, p.Y, 0)));
+			}
+			else
+			{
+				matrix = Matrix3d.Displacement(p.GetVectorTo(new Point3d(p.X + dist, p.Y - GetProfileDepth(layer), 0)));
+			}
+				
 			pt = pt.TransformBy(matrix);
 
 			return pt;
@@ -356,6 +405,97 @@ namespace GxtCadSolutions
 			}
 		}
 
+		public void DrawProfileDriveway(Point3dCollection pts, double gradeLength)
+		{
+			bool hasBoc = false;
+			bool isEndGrade = false;
+			DBObjectCollection dbDrivewayObjs = new DBObjectCollection();
+
+			for (int i = 0; i < pts.Count; i++)
+			{
+				if ((i + 3) > pts.Count)
+				{
+					//this is the end of the profile 
+					isEndGrade = true;
+				}	
+
+				//if their distance is less than 1 then they are part of the same driveway or road
+				if (pts[i].DistanceTo(pts[i + 1]) < 1 && !isEndGrade)
+				{
+					if (pts[i + 2].DistanceTo(pts[i + 3]) < 1)
+					{
+						hasBoc = true;
+					}
+				}
+					
+
+				if (hasBoc)
+				{ 
+					Line l = new Line(pts[i], new Point3d(pts[i].X, pts[i].Y - 4, pts[i].Z));
+					l.Layer = "profile";
+					dbDrivewayObjs.Add(l);
+
+					Line l2 = new Line(new Point3d(pts[i].X, pts[i].Y - 4, pts[i].Z), new Point3d(pts[i + 3].X, pts[i + 3].Y - 4, pts[i + 3].Z));
+					l2.Layer = "profile";
+					dbDrivewayObjs.Add(l2);
+
+					Line l3 = new Line(pts[i + 3], new Point3d(pts[i + 3].X, pts[i + 3].Y - 4, pts[i + 3].Z));
+					l3.Layer = "profile";
+					dbDrivewayObjs.Add(l3);
+
+					Line l4 = new Line(pts[i + 1], new Point3d(pts[i + 1].X, pts[i + 1].Y - 2, pts[i + 1].Z));
+					l4.Layer = "profile";
+					dbDrivewayObjs.Add(l4);
+
+					Line l5 = new Line(new Point3d(pts[i + 1].X, pts[i + 1].Y - 2, pts[i + 1].Z), new Point3d(pts[i + 2].X, pts[i + 2].Y - 2, pts[i + 2].Z));
+					l5.Layer = "profile";
+					dbDrivewayObjs.Add(l5);
+
+					Line l6 = new Line(pts[i + 2], new Point3d(pts[i + 2].X, pts[i + 2].Y - 2, pts[i + 2].Z));
+					l6.Layer = "profile";
+					dbDrivewayObjs.Add(l6);
+
+					i += 2;
+					hasBoc = false;
+				}
+
+				if (isEndGrade)
+				{
+					Line l = new Line(pts[i], new Point3d(pts[i].X, pts[i].Y - 4, pts[i].Z));
+					l.Layer = "profile";
+					dbDrivewayObjs.Add(l);
+
+					Line l2 = new Line(new Point3d(pts[i].X, pts[i].Y - 4, pts[i].Z), new Point3d(pts[i].X + gradeLength, pts[i].Y - 4, pts[i].Z));
+					l2.Layer = "profile";
+					dbDrivewayObjs.Add(l2);
+
+					Line l3 = new Line(new Point3d(pts[i].X, pts[i].Y - 2, pts[i].Z), new Point3d(pts[i].X + gradeLength, pts[i].Y - 2, pts[i].Z));
+					l3.Layer = "profile";
+					dbDrivewayObjs.Add(l3);
+					//exit the loop and commit all driveways
+					break;
+				}
+			}
+
+			if (dbDrivewayObjs.Count > 0)
+			{
+				Transaction trans = database.TransactionManager.StartTransaction();
+				using (trans)
+				{
+					BlockTable bt = trans.GetObject(database.BlockTableId, OpenMode.ForRead) as BlockTable;
+					BlockTableRecord btr = trans.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite) as BlockTableRecord;
+
+					foreach (Entity db in dbDrivewayObjs)
+					{
+						btr.AppendEntity(db);
+						trans.AddNewlyCreatedDBObject(db, true);
+					}
+					trans.Commit();
+				}
+			}
+
+		}
+
 		public string ProfileObjContentFormat(string size)
 		{
 			string temp = new String(size.Where(Char.IsDigit).ToArray());
@@ -405,11 +545,12 @@ namespace GxtCadSolutions
 		public SelectionSet CreateFenceUsingPolyline(Polyline pl, bool filter)
 		{
 			Point3dCollection vertices = new Point3dCollection();
-
-			for (int i = 0; i < pl.NumberOfVertices; i++)
+						
+			for (double i = 0; i < pl.Length; i += 3)
 			{
-				vertices.Add(pl.GetPoint3dAt(i));
+				vertices.Add(pl.GetPointAtDist(i));
 			}
+			
 			//check for filter
 			SelectionFilter selectionFilter = null;
 			if (filter)
@@ -488,5 +629,43 @@ namespace GxtCadSolutions
 			public double Size { get; set; }
 			public string Contents { get; set; }
 		}
+	}
+
+	internal class sort3dByX : IComparer<Point3d>
+
+	{
+
+		public static bool IsZero(double a)
+
+		{
+
+			return Math.Abs(a) < Tolerance.Global.EqualPoint;
+
+		}
+
+
+
+		public static bool IsEqual(double a, double b)
+
+		{
+
+			return IsZero(b - a);
+
+		}
+
+
+
+		public int Compare(Point3d a, Point3d b)
+
+		{
+
+			if (IsEqual(a.X, b.X)) return 0; // ==
+
+			if (a.X < b.X) return -1; // <
+
+			return 1; // >
+
+		}
+
 	}
 }
