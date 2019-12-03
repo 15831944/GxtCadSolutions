@@ -107,7 +107,7 @@ namespace GxtCadSolutions
 			MText mText = new MText()
 			{
 				TextHeight = 3.5,
-				Location = new Point3d(LeftBottomPt.X - 5, LeftBottomPt.Y, LeftBottomPt.Z),
+				Location = new Point3d(LeftBottomPt.X - 1, LeftBottomPt.Y, LeftBottomPt.Z),
 				Layer = "TEXT-2",
 				Attachment = AttachmentPoint.MiddleRight
 			};
@@ -134,7 +134,7 @@ namespace GxtCadSolutions
 			i = -30;
 			x = 0;
 			MText mTextEnd = (MText)mText.Clone();
-			mTextEnd.Location = new Point3d(LeftBottomPt.X + (Length + 5), LeftBottomPt.Y, LeftBottomPt.Z);
+			mTextEnd.Location = new Point3d(LeftBottomPt.X + (Length + 1), LeftBottomPt.Y, LeftBottomPt.Z);
 
 			while (i < 5)
 			{
@@ -180,11 +180,14 @@ namespace GxtCadSolutions
 		public string FormatGridElevataion(int e)
 		{
 
+			if (e == 0)
+			{
+				return "00";
+			}
+			else if (e > 0)
+				return "+0" + e.ToString();
 			if (e == -5)
 				return "-05";
-
-			if (e.ToString().Length == 1)
-				return "0" + e.ToString();
 
 			return e.ToString();
 		}
